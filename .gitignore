@@ -1,0 +1,8 @@
+﻿venv/
+__pycache__/
+*.pyc
+*.egg-info/
+unblock.config.yaml
+.unblock/
+.env
+.DS_Store

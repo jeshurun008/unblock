@@ -1,0 +1,25 @@
+[project]
+name = "unblock"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "typer",
+    "pyyaml",
+    "gitpython",
+    "pyfiglet",
+    "PyGithub",
+    "rich",
+]
+
+[project.scripts]
+unblock = "unblock.cli:app"
+
+[project.optional-dependencies]
+llm = ["litellm"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["unblock*"]
