@@ -1,54 +1,96 @@
-﻿# unblock
+# Unblock
 
-A repo health agent. Scans your repos and tells you which one is actually blocked, and why.
+A Python-based project analysis tool that uses LLM-powered scanners to identify potential blockers and authentication flows in your codebase.
 
-Most tools tell you everything that's wrong. `unblock` tells you what to fix first — and it catches a specific class of bug most linters miss entirely: **auth-lifecycle gaps**. A JWT that gets issued but never refreshed doesn't throw an error in dev — it just silently logs users out in production, hours after the code that caused it. `unblock`'s signature scanner (`auth_flow_scanner`) uses AST-based static analysis, not regex, to catch exactly that.
+## Description
 
-## What it does
-$ unblock scan
-UNBLOCK
-repo health agent — v0.1.0
-Scanning 3 repo(s)...
-Repo           Status    Top Signal
-─────────────────────────────────────────────────────────
-AssetFlow      blocked   token issued, no refresh handler found in this module
-SOMA           stale     last commit 12d ago
-Trackly        ok        CI passing
-Fix this first: AssetFlow
-Run unblock explain AssetFlow for detail
+Unblock is an intelligent code scanning utility that leverages Language Models to analyze projects for common development blockers, authentication patterns, CI/CD configurations, and Git workflows. It provides automated insights to help developers identify and resolve potential issues in their projects.
 
-## Scanners
+## Tech Stack
 
-- **`git_scanner`** — uncommitted changes, commit recency, filters vendored/dependency noise (`.venv`, `node_modules`, etc.) so real findings aren't buried
-- **`ci_scanner`** — GitHub Actions status (needs `GITHUB_TOKEN`)
-- **`auth_flow_scanner`** — AST-based detection of JWT lifecycle bugs (PyJWT currently): tokens issued with no refresh path, `jwt.decode()` calls with no expiry-aware error handling
+- **Language:** Python 3.x
+- **Core Technologies:**
+  - LLM Integration (Language Model Pool)
+  - CLI Interface
+  - Caching System
+  - Multi-scanner Architecture
+- **Project Management:** Poetry (pyproject.toml)
 
-## Install
+## Installation
+
+### Prerequisites
+
+- Python 3.8 or higher
+- pip or Poetry package manager
+
+### Install with pip
 
 ```bash
-git clone <your-repo-url>
-cd unblock
-python -m venv venv
-# Windows: .\venv\Scripts\Activate.ps1
-# macOS/Linux: source venv/bin/activate
 pip install -e .
+```
+
+### Install with Poetry
+
+```bash
+poetry install
 ```
 
 ## Usage
 
+### Basic Command
+
 ```bash
-unblock init                    # create unblock.config.yaml
-unblock add <path>               # register a repo
-unblock scan                     # scan all configured repos
-unblock scan --no-cache          # force a fresh scan, skip caching
-unblock explain <repo>           # full breakdown + suggested fix
-unblock list                     # show configured repos
+unblock [options]
 ```
 
-## Architecture
+### Running Scanners
 
-Every scanner emits a `Signal` — a structured finding with severity, confidence, and location — never raw text. Detection is 100% deterministic (Python's `ast` module, not an LLM): scanners only report facts, keeping hallucination out of the detection layer entirely. Scan results are cached by a fingerprint of git HEAD + dirty-file state + scanner version, so an unchanged repo skips rescanning on the next run.
+The tool includes multiple specialized scanners:
 
-## Status
+- **Auth Flow Scanner** - Analyzes authentication and authorization patterns
+- **CI Scanner** - Examines CI/CD configuration and workflows
+- **Git Scanner** - Reviews Git repository structure and history
+- **LLM Auth Scanner** - Uses LLM to identify authentication-related issues
 
-Early build. `git_scanner`, `ci_scanner`, and `auth_flow_scanner` (PyJWT) are working. JS/TS auth-flow detection, an LLM triage/explanation layer, and a risk-tiered `fix` command (auto-commit safe changes, open a PR for auth-critical ones) are next.
+### Configuration
+
+Configure Unblock by setting up your configuration file. The tool uses a caching system to optimize repeated scans and improve performance.
+
+### Example Workflow
+
+```bash
+# Scan current project
+unblock
+
+# View detailed output with banner information
+unblock --verbose
+
+# Clear cache before scanning
+unblock --clear-cache
+```
+
+## Project Structure
+
+```
+unblock/
+├── __init__.py           # Package initialization
+├── cache.py              # Caching system for scan results
+├── cli.py                # Command-line interface
+├── config.py             # Configuration management
+├── llm_pool.py           # LLM connection pooling
+├── scoring.py            # Scoring and ranking system
+├── output/
+│   ├── __init__.py
+│   └── banner.py         # Output formatting and banners
+└── scanners/
+    ├── __init__.py
+    ├── base.py           # Base scanner class
+    ├── auth_flow_scanner.py
+    ├── ci_scanner.py
+    ├── git_scanner.py
+    └── llm_auth_scanner.py
+```
+
+## License
+
+MIT License
