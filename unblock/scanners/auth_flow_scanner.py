@@ -92,39 +92,51 @@ def _has_refresh_sibling(tree: ast.AST) -> bool:
     return False
 
 
-def _enclosing_function(tree: ast.AST, target: ast.AST):
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            for child in ast.walk(node):
-                if child is target:
-                    return node
-    return None
+def _exception_names(node: ast.AST) -> set[str]:
+    """Collect exception names from Name, Attribute, or tuple expressions."""
+    if isinstance(node, ast.Name):
+        return {node.id}
+    if isinstance(node, ast.Attribute):
+        return {node.attr}
+    if isinstance(node, ast.Tuple):
+        names: set[str] = set()
+        for item in node.elts:
+            names.update(_exception_names(item))
+        return names
+    return set()
 
 
 def _handles_expiry(tree: ast.AST, decode_call: ast.AST) -> bool:
-    """Check if the decode call's enclosing function has an ExpiredSignatureError
-    except clause, or a try/except wrapping the decode call at all."""
-    func = _enclosing_function(tree, decode_call)
-    if func is None:
-        return False
+    """Return whether this decode call is protected by an expiry-specific except.
 
-    for node in ast.walk(func):
-        if isinstance(node, ast.ExceptHandler):
-            if node.type is None:
-                continue
-            names = []
-            if isinstance(node.type, ast.Name):
-                names.append(node.type.id)
-            elif isinstance(node.type, ast.Tuple):
-                for elt in node.type.elts:
-                    if isinstance(elt, ast.Attribute):
-                        names.append(elt.attr)
-                    elif isinstance(elt, ast.Name):
-                        names.append(elt.id)
-            elif isinstance(node.type, ast.Attribute):
-                names.append(node.type.attr)
-            if any("expired" in n.lower() for n in names):
-                return True
+    The handler must belong to a try statement whose body contains this call,
+    and it must be inside the call's nearest enclosing function. An unrelated
+    handler elsewhere in the function (or in an outer function) is not enough.
+    """
+    parents = {
+        child: node
+        for node in ast.walk(tree)
+        for child in ast.iter_child_nodes(node)
+    }
+    current = decode_call
+
+    while current in parents:
+        parent = parents[current]
+
+        if isinstance(parent, ast.Try) and current in parent.body:
+            for handler in parent.handlers:
+                if handler.type is None:
+                    continue
+                if any("expired" in name.lower() for name in _exception_names(handler.type)):
+                    return True
+
+        # Do not let an outer function's exception handling cover a nested
+        # function definition: the nested function executes independently.
+        if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            return False
+
+        current = parent
+
     return False
 
 
