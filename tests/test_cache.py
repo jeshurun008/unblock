@@ -24,6 +24,14 @@ class CacheFingerprintTests(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
+
+    def test_unborn_repository_can_be_fingerprinted(self):
+        with tempfile.TemporaryDirectory() as empty_dir:
+            Repo.init(empty_dir)
+            fingerprint = cache._fingerprint(empty_dir)
+        self.assertIsInstance(fingerprint, str)
+        self.assertEqual(len(fingerprint), 64)
+
     def test_untracked_file_changes_fingerprint(self):
         before = cache._fingerprint(str(self.repo_path))
         (self.repo_path / "new_module.py").write_text("token = 'first'\n", encoding="utf-8")
