@@ -7,13 +7,16 @@ from git import Repo, InvalidGitRepositoryError
 
 from .scanners.base import Signal, Severity
 
-SCANNER_VERSION = "1.0"  # bump this whenever scanner detection logic changes
+SCANNER_VERSION = "1.1"  # bump whenever scanner detection or cache inputs change
 CACHE_DIR = Path.home() / ".unblock" / "cache"
 
 
 def _fingerprint(repo_path: str) -> str:
-    """Combines git HEAD, dirty-file mtimes, and scanner version into one hash.
-    Any change to the repo's committed OR uncommitted state invalidates the cache."""
+    """Fingerprint committed state plus tracked and untracked working-tree files.
+
+    Hash file contents rather than mtimes so rapid edits, timestamp-preserving
+    copies, and newly-created untracked source files all invalidate the cache.
+    """
     parts = [SCANNER_VERSION]
 
     try:
@@ -23,19 +26,31 @@ def _fingerprint(repo_path: str) -> str:
         except (ValueError, TypeError):
             parts.append("no-commits")
 
-        dirty_files = sorted(set(
-            [item.a_path for item in repo.index.diff(None)]
-            + [item.a_path for item in repo.index.diff("HEAD")]
-        ))
-        for f in dirty_files:
-            full_path = os.path.join(repo_path, f)
-            if os.path.exists(full_path):
-                parts.append(f"{f}:{os.path.getmtime(full_path)}")
+        changed = {
+            item.a_path
+            for item in list(repo.index.diff(None)) + list(repo.index.diff("HEAD"))
+            if item.a_path
+        }
+        changed.update(repo.untracked_files)
+
+        for relative_path in sorted(changed):
+            full_path = Path(repo_path) / relative_path
+            if not full_path.is_file():
+                parts.append(f"{relative_path}:<missing>")
+                continue
+            digest = hashlib.sha256()
+            try:
+                with full_path.open("rb") as source:
+                    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                        digest.update(chunk)
+            except OSError:
+                parts.append(f"{relative_path}:<unreadable>")
+                continue
+            parts.append(f"{relative_path}:{digest.hexdigest()}")
     except InvalidGitRepositoryError:
         parts.append("not-a-repo")
 
-    combined = "|".join(parts)
-    return hashlib.sha256(combined.encode()).hexdigest()
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
 
 def _cache_file(repo_path: str) -> Path:
@@ -49,28 +64,25 @@ def load_cached(repo_path: str) -> list[Signal] | None:
         return None
 
     try:
-        with open(cache_file) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return None
+        with cache_file.open(encoding="utf-8") as source:
+            data = json.load(source)
+        if data.get("fingerprint") != _fingerprint(repo_path):
+            return None
 
-    if data.get("fingerprint") != _fingerprint(repo_path):
-        return None
-
-    signals = []
-    for s in data["signals"]:
-        signals.append(
+        return [
             Signal(
-                scanner_name=s["scanner_name"],
-                severity=Severity(s["severity"]),
-                description=s["description"],
-                rule_id=s["rule_id"],
-                location=s.get("location"),
-                safe_to_autofix=s.get("safe_to_autofix", False),
-                confidence=s.get("confidence", 1.0),
+                scanner_name=item["scanner_name"],
+                severity=Severity(item["severity"]),
+                description=item["description"],
+                rule_id=item["rule_id"],
+                location=item.get("location"),
+                safe_to_autofix=item.get("safe_to_autofix", False),
+                confidence=item.get("confidence", 1.0),
             )
-        )
-    return signals
+            for item in data["signals"]
+        ]
+    except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError):
+        return None
 
 
 def save_cache(repo_path: str, signals: list[Signal]) -> None:
@@ -78,7 +90,9 @@ def save_cache(repo_path: str, signals: list[Signal]) -> None:
     cache_file = _cache_file(repo_path)
     data = {
         "fingerprint": _fingerprint(repo_path),
-        "signals": [s.to_dict() for s in signals],
+        "signals": [signal.to_dict() for signal in signals],
     }
-    with open(cache_file, "w") as f:
-        json.dump(data, f)
+    temporary_file = cache_file.with_suffix(".tmp")
+    with temporary_file.open("w", encoding="utf-8") as target:
+        json.dump(data, target)
+    temporary_file.replace(cache_file)
