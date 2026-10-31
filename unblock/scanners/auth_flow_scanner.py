@@ -164,10 +164,12 @@ class AuthFlowScanner(Scanner):
                 continue
 
             file_has_encode = False
+            file_encode_line = None
             for call in _walk_calls(tree):
                 if _is_jwt_call(call, "encode", jwt_names):
                     any_jwt_usage = True
                     file_has_encode = True
+                    file_encode_line = call.lineno
                     encode_sites.append((filepath, call.lineno))
                 if _is_jwt_call(call, "decode", jwt_names):
                     any_jwt_usage = True
@@ -189,7 +191,7 @@ class AuthFlowScanner(Scanner):
                             else "token issued, no refresh handler found in this module"
                         ),
                         rule_id="auth_flow.no_refresh_handler",
-                        location=f"      {rel}:{encode_sites[-1][1]}",
+                        location=f"      {rel}:{file_encode_line}",
                         safe_to_autofix=False,
                     )
                 )
