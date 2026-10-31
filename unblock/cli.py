@@ -152,8 +152,13 @@ def scan(
         import json as jsonlib
 
         out = [
-            {"repo": r["repo"], "status": r["status"], "score": r["score"]}
-            for r in results
+            {
+                "repo": result["repo"],
+                "status": result["status"],
+                "score": result["score"],
+                "signals": [signal.to_dict() for signal in result["signals"]],
+            }
+            for result in results
         ]
         typer.echo(jsonlib.dumps(out))
         return
