@@ -20,7 +20,7 @@ Unblock inspects Git working-tree state, Python JWT lifecycle patterns, and (opt
 - Python auth analysis is pattern-based and currently focuses on PyJWT `encode`/`decode` calls.
 - A refresh handler in another module may not be visible to the Python scanner; review findings in context.
 - The LLM scanner is optional and its output is always downgraded to warnings.
-- The CI scanner reports the recent workflow-run state; it does not inspect individual job logs.
+- The CI scanner checks the five most recent GitHub Actions workflow runs. Failed runs are blocking, in-progress runs are reported separately, and it does not inspect individual job logs.
 - The cache tracks Git HEAD plus changed and untracked working-tree file contents. Scanner changes should bump `SCANNER_VERSION`.
 - A scanner runtime error is reported as a warning and does not stop the remaining scanners.
 - The Git scanner reports untracked files as uncommitted work; dependency folders are classified separately when detected.
@@ -154,7 +154,7 @@ unblock/
 - [x] Add regression coverage for Python JWT expiry-handler scope and scanner findings
 - [x] Add Git scanner tests for clean, dirty, untracked, vendored, and unborn repositories
 - [x] Include scanner findings in JSON output and add `--fail-on-blocking`
-- [ ] Add scanner-level tests for GitHub Actions CI behavior
+- [x] Add scanner-level tests for GitHub Actions CI behavior, including missing credentials, pending runs, failures, and provider errors
 - [ ] Add a terminal demo and prepare a tagged release
 
 ## License
