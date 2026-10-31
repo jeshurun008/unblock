@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from git import Repo, InvalidGitRepositoryError
+from git.exc import BadName
 
 from .base import Scanner, Signal, Severity
 
@@ -25,8 +26,15 @@ class GitScanner(Scanner):
             return signals
 
         # uncommitted changes
-        dirty_files = [item.a_path for item in repo.index.diff(None)]
-        dirty_files += [item.a_path for item in repo.index.diff("HEAD")]
+        dirty_files = [item.a_path for item in repo.index.diff(None) if item.a_path]
+        try:
+            dirty_files.extend(
+                item.a_path for item in repo.index.diff("HEAD") if item.a_path
+            )
+        except (BadName, ValueError):
+            # A newly initialized repository has no HEAD yet.
+            pass
+        dirty_files.extend(repo.untracked_files)
         dirty_files = sorted(set(dirty_files))
 
         if dirty_files:
