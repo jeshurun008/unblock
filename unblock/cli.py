@@ -14,7 +14,7 @@ from .output.banner import print_banner
 from .scanners.git_scanner import GitScanner
 from .scanners.ci_scanner import CIScanner
 from .scanners.auth_flow_scanner import AuthFlowScanner
-from .scanners.base import Severity
+from .scanners.base import Severity, Signal
 from .scoring import score, status, top_signal
 
 # recolor typer's --help rendering to the blue-only palette
@@ -98,7 +98,19 @@ def _run_scanners(repo_path: str, verbose: bool = True, use_cache: bool = True):
     for scanner in SCANNERS:
         if verbose:
             console.print(f"    → [#1E3A8A]{scanner.name:<18}[/#1E3A8A] scanning...")
-        signals = scanner.scan(repo_path)
+        try:
+            signals = scanner.scan(repo_path)
+        except Exception as exc:
+            # One broken scanner should not prevent the remaining checks from running.
+            signals = [
+                Signal(
+                    scanner_name=scanner.name,
+                    severity=Severity.WARNING,
+                    description=f"scanner failed ({type(exc).__name__}); remaining scanners will continue",
+                    rule_id="scanner.execution_error",
+                    confidence=0.5,
+                )
+            ]
         all_signals.extend(signals)
         if verbose:
             blocking = [s for s in signals if s.severity.value == "blocking"]
@@ -118,6 +130,9 @@ def scan(
     repo: str = typer.Argument(None, help="scan a single repo by name"),
     json_out: bool = typer.Option(False, "--json", help="machine-readable output"),
     no_cache: bool = typer.Option(False, "--no-cache", help="force rescan, ignore cache"),
+    fail_on_blocking: bool = typer.Option(
+        False, "--fail-on-blocking", help="exit with code 2 if any repository is blocked"
+    ),
 ):
     """Scan all configured repos, or a single repo by name."""
     data = cfg.load_config()
@@ -160,7 +175,9 @@ def scan(
             }
             for result in results
         ]
-        typer.echo(jsonlib.dumps(out))
+        typer.echo(jsonlib.dumps(out, indent=2, sort_keys=True))
+        if fail_on_blocking and any(result["status"] == "blocked" for result in results):
+            raise typer.Exit(2)
         return
 
     table = Table(box=box.SIMPLE, show_header=True, header_style="bold #3B82F6", pad_edge=False, width=100)
