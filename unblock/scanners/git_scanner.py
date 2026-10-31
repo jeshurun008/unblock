@@ -108,7 +108,8 @@ class GitScanner(Scanner):
                         rule_id="git.recent_commit",
                     )
                 )
-        except StopIteration:
+        except (StopIteration, ValueError):
+            # An initialized repository can have no commits and therefore no valid HEAD.
             signals.append(
                 Signal(
                     scanner_name=self.name,
