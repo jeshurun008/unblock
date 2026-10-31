@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from git import Repo, InvalidGitRepositoryError
+from git.exc import BadName
 
 from .scanners.base import Signal, Severity
 
@@ -26,11 +27,12 @@ def _fingerprint(repo_path: str) -> str:
         except (ValueError, TypeError):
             parts.append("no-commits")
 
-        changed = {
-            item.a_path
-            for item in list(repo.index.diff(None)) + list(repo.index.diff("HEAD"))
-            if item.a_path
-        }
+        changed = {item.a_path for item in repo.index.diff(None) if item.a_path}
+        try:
+            changed.update(item.a_path for item in repo.index.diff("HEAD") if item.a_path)
+        except (BadName, ValueError):
+            # An initialized repository may not have a HEAD until its first commit.
+            pass
         changed.update(repo.untracked_files)
 
         for relative_path in sorted(changed):
