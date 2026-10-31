@@ -76,6 +76,11 @@ class CIScannerTests(unittest.TestCase):
         self.assertEqual(findings[0].rule_id, "ci.not_configured")
         self.assertEqual(findings[0].severity, Severity.INFO)
 
+    def test_in_progress_runs_are_not_reported_as_passing(self):
+        findings = self.run_with_conclusions(["success", None])
+        self.assertEqual(findings[0].rule_id, "ci.in_progress")
+        self.assertNotEqual(findings[0].rule_id, "ci.passing")
+
     def test_provider_exception_is_reported_as_fetch_error(self):
         fake_github = types.SimpleNamespace(
             Github=lambda token: types.SimpleNamespace(
