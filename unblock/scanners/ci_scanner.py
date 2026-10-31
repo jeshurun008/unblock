@@ -78,6 +78,17 @@ class CIScanner(Scanner):
                     )
                 ]
 
+            pending = [run for run in recent if run.conclusion is None]
+            if pending:
+                return [
+                    Signal(
+                        scanner_name=self.name,
+                        severity=Severity.INFO,
+                        description=f"{len(pending)} of last {len(recent)} runs still in progress",
+                        rule_id="ci.in_progress",
+                    )
+                ]
+
             return [
                 Signal(
                     scanner_name=self.name,
