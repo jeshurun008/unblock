@@ -53,9 +53,13 @@ class CacheFingerprintTests(unittest.TestCase):
             location="sample.py:3",
             confidence=0.8,
         )
-        with patch.object(cache, "CACHE_DIR", self.repo_path / ".cache"):
-            cache.save_cache(str(self.repo_path), [signal])
-            restored = cache.load_cached(str(self.repo_path))
+        # Keep the cache outside the scanned repository: creating cache files
+        # inside the repo would itself appear as an untracked change and alter
+        # the fingerprint between save and load.
+        with tempfile.TemporaryDirectory() as cache_dir:
+            with patch.object(cache, "CACHE_DIR", Path(cache_dir)):
+                cache.save_cache(str(self.repo_path), [signal])
+                restored = cache.load_cached(str(self.repo_path))
         self.assertEqual(len(restored), 1)
         self.assertEqual(restored[0].rule_id, "test.example")
         self.assertEqual(restored[0].severity, Severity.WARNING)
