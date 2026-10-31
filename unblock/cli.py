@@ -198,6 +198,8 @@ def scan(
         worst = max(blocked, key=lambda r: r["score"])
         console.print(f"\n  [bold #3B82F6]Fix this first: {worst['repo']}[/bold #3B82F6]")
         console.print(f"  [#1E3A8A]Run `unblock explain {worst['repo']}` for detail[/#1E3A8A]")
+    if fail_on_blocking and blocked:
+        raise typer.Exit(2)
 
 
 @app.command()
