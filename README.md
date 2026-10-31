@@ -1,96 +1,149 @@
 # Unblock
 
-A Python-based project analysis tool that uses LLM-powered scanners to identify potential blockers and authentication flows in your codebase.
+**A repository health CLI that helps developers find what is slowing a project down.**
 
-## Description
+Unblock inspects Git working-tree state, Python JWT lifecycle patterns, and (optionally) recent GitHub Actions runs. It combines deterministic scanners with an optional LLM-assisted scan for selected non-Python languages.
 
-Unblock is an intelligent code scanning utility that leverages Language Models to analyze projects for common development blockers, authentication patterns, CI/CD configurations, and Git workflows. It provides automated insights to help developers identify and resolve potential issues in their projects.
+> Unblock is an early-stage developer tool. Findings are signals for human review, not a guarantee that a repository is secure or production-ready.
 
-## Tech Stack
+## What it checks
 
-- **Language:** Python 3.x
-- **Core Technologies:**
-  - LLM Integration (Language Model Pool)
-  - CLI Interface
-  - Caching System
-  - Multi-scanner Architecture
-- **Project Management:** Poetry (pyproject.toml)
+| Scanner | What it inspects | Network required |
+|---|---|---:|
+| Git | Uncommitted changes, likely vendored-file noise, and commit recency | No |
+| Python auth | PyJWT issuance and expiry-exception patterns using Python's AST | No |
+| CI | Recent GitHub Actions workflow runs for the repository's GitHub remote | Yes, with `GITHUB_TOKEN` |
+| LLM auth | Narrow token-lifecycle patterns in JavaScript, TypeScript, Go, Java, and Ruby | Yes, with a supported provider key |
 
-## Installation
+### Current limitations
 
-### Prerequisites
+- Python auth analysis is pattern-based and currently focuses on PyJWT `encode`/`decode` calls.
+- A refresh handler in another module may not be visible to the Python scanner; review findings in context.
+- The LLM scanner is optional and its output is always downgraded to warnings.
+- The CI scanner reports the recent workflow-run state; it does not inspect individual job logs.
+- The cache tracks Git HEAD plus changed and untracked working-tree file contents. Scanner changes should bump `SCANNER_VERSION`.
 
-- Python 3.8 or higher
-- pip or Poetry package manager
+## Install
 
-### Install with pip
+Requires Python 3.10 or newer.
 
-```bash
-pip install -e .
-```
-
-### Install with Poetry
+Clone the repository and install it in editable mode:
 
 ```bash
-poetry install
+git clone https://github.com/jeshurun008/unblock.git
+cd unblock
+python -m pip install -e .
 ```
 
-## Usage
-
-### Basic Command
+Optional LLM support:
 
 ```bash
-unblock [options]
+python -m pip install -e ".[llm]"
 ```
 
-### Running Scanners
+## Quick start
 
-The tool includes multiple specialized scanners:
-
-- **Auth Flow Scanner** - Analyzes authentication and authorization patterns
-- **CI Scanner** - Examines CI/CD configuration and workflows
-- **Git Scanner** - Reviews Git repository structure and history
-- **LLM Auth Scanner** - Uses LLM to identify authentication-related issues
-
-### Configuration
-
-Configure Unblock by setting up your configuration file. The tool uses a caching system to optimize repeated scans and improve performance.
-
-### Example Workflow
+Initialize a configuration file in the directory where you want to manage repositories:
 
 ```bash
-# Scan current project
-unblock
-
-# View detailed output with banner information
-unblock --verbose
-
-# Clear cache before scanning
-unblock --clear-cache
+unblock init
+unblock add /absolute/path/to/your/project
+unblock list
+unblock scan
 ```
 
-## Project Structure
+Scan one configured repository:
 
+```bash
+unblock scan my-project --no-cache
+unblock explain my-project
 ```
+
+Get machine-readable summary output:
+
+```bash
+unblock scan --json
+```
+
+The configuration file is named `unblock.config.yaml`. It is local to your working directory and is intentionally excluded from version control.
+
+## Optional integrations
+
+### GitHub Actions status
+
+Set a GitHub token with permission to read repository actions:
+
+```bash
+# macOS / Linux
+export GITHUB_TOKEN="your-token"
+
+# PowerShell
+$env:GITHUB_TOKEN = "your-token"
+```
+
+The scanner discovers the GitHub repository from its Git remote. Without a token, it skips the remote CI check.
+
+### LLM-assisted auth scan
+
+Install the optional dependency and configure a provider key supported by the LLM pool. The LLM scanner only inspects selected source files and only emits warning-level findings; it never marks its own findings as safe to auto-fix.
+
+## How findings are represented
+
+Each scanner emits a structured signal with:
+
+- **Severity** — `info`, `warning`, or `blocking`
+- **Rule ID** — stable identifier suitable for filtering and automation
+- **Location** — source path and line when available
+- **Confidence** — scanner confidence where applicable
+- **Safe-to-autofix** — explicit opt-in marker; false by default
+
+The CLI groups findings into repository statuses:
+
+- `ok` — no elevated score
+- `stale` — warning-level score
+- `blocked` — blocking-level score
+
+Treat these statuses as triage hints, not objective quality scores.
+
+## Development
+
+```bash
+python -m pip install -e ".[dev]"
+python -m unittest discover -s tests -v
+```
+
+Run the CLI locally:
+
+```bash
+python -m unblock.cli --help
+```
+
+## Project layout
+
+```text
 unblock/
-├── __init__.py           # Package initialization
-├── cache.py              # Caching system for scan results
-├── cli.py                # Command-line interface
-├── config.py             # Configuration management
-├── llm_pool.py           # LLM connection pooling
-├── scoring.py            # Scoring and ranking system
-├── output/
-│   ├── __init__.py
-│   └── banner.py         # Output formatting and banners
-└── scanners/
-    ├── __init__.py
-    ├── base.py           # Base scanner class
-    ├── auth_flow_scanner.py
-    ├── ci_scanner.py
-    ├── git_scanner.py
-    └── llm_auth_scanner.py
+├── unblock/
+│   ├── scanners/       # Git, CI, Python AST, and optional LLM scanners
+│   ├── output/         # Terminal presentation
+│   ├── cache.py        # Working-tree-aware scan cache
+│   ├── cli.py          # Typer commands
+│   ├── config.py       # Local repository configuration
+│   └── scoring.py      # Finding aggregation
+├── tests/
+└── pyproject.toml
 ```
+
+## Roadmap
+
+- [x] Git working-tree and commit-recency checks
+- [x] Python AST-based PyJWT pattern checks
+- [x] Optional GitHub Actions status lookup
+- [x] Optional LLM-assisted checks for selected languages
+- [x] Cache invalidation for untracked and modified files
+- [ ] Expand deterministic auth rules with fixture-driven regression coverage
+- [ ] Add scanner-level tests for Git, CI, and Python auth behavior
+- [ ] Add structured JSON findings output and documented exit codes
 
 ## License
 
-MIT License
+MIT
