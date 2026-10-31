@@ -10,7 +10,7 @@ Unblock inspects Git working-tree state, Python JWT lifecycle patterns, and (opt
 
 | Scanner | What it inspects | Network required |
 |---|---|---:|
-| Git | Uncommitted changes, likely vendored-file noise, and commit recency | No |
+| Git | Tracked modifications, untracked files, likely vendored-file noise, and commit recency | No |
 | Python auth | PyJWT issuance and expiry-exception patterns using Python's AST | No |
 | CI | Recent GitHub Actions workflow runs for the repository's GitHub remote | Yes, with `GITHUB_TOKEN` |
 | LLM auth | Narrow token-lifecycle patterns in JavaScript, TypeScript, Go, Java, and Ruby | Yes, with a supported provider key |
@@ -22,6 +22,8 @@ Unblock inspects Git working-tree state, Python JWT lifecycle patterns, and (opt
 - The LLM scanner is optional and its output is always downgraded to warnings.
 - The CI scanner reports the recent workflow-run state; it does not inspect individual job logs.
 - The cache tracks Git HEAD plus changed and untracked working-tree file contents. Scanner changes should bump `SCANNER_VERSION`.
+- A scanner runtime error is reported as a warning and does not stop the remaining scanners.
+- The Git scanner reports untracked files as uncommitted work; dependency folders are classified separately when detected.
 
 ## Install
 
@@ -64,6 +66,15 @@ Get machine-readable summary output:
 ```bash
 unblock scan --json
 ```
+
+For CI or scripts, return exit code `2` when any repository is classified as blocked:
+
+```bash
+unblock scan --fail-on-blocking
+unblock scan --json --fail-on-blocking
+```
+
+Exit codes: `0` means the scan completed without a blocking status (unless strict mode is disabled), `1` means the command could not run (for example, no configured repository), and `2` means strict mode found at least one blocked repository. JSON output is pretty-printed and includes each scanner finding.
 
 The configuration file is named `unblock.config.yaml`. It is local to your working directory and is intentionally excluded from version control.
 
@@ -140,9 +151,11 @@ unblock/
 - [x] Optional GitHub Actions status lookup
 - [x] Optional LLM-assisted checks for selected languages
 - [x] Cache invalidation for untracked and modified files
-- [ ] Expand deterministic auth rules with fixture-driven regression coverage
-- [ ] Add scanner-level tests for Git, CI, and Python auth behavior
-- [ ] Add structured JSON findings output and documented exit codes
+- [x] Add regression coverage for Python JWT expiry-handler scope and scanner findings
+- [x] Add Git scanner tests for clean, dirty, untracked, vendored, and unborn repositories
+- [x] Include scanner findings in JSON output and add `--fail-on-blocking`
+- [ ] Add scanner-level tests for GitHub Actions CI behavior
+- [ ] Add a terminal demo and prepare a tagged release
 
 ## License
 
