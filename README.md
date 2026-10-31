@@ -98,6 +98,10 @@ The scanner discovers the GitHub repository from its Git remote. Without a token
 
 Install the optional dependency and configure a provider key supported by the LLM pool. The LLM scanner only inspects selected source files and only emits warning-level findings; it never marks its own findings as safe to auto-fix.
 
+## Demo
+
+See the [terminal walkthrough](docs/DEMO.md) for an end-to-end example of adding repositories, scanning, inspecting findings, and using strict JSON mode. The transcript is illustrative rather than captured output.
+
 ## How findings are represented
 
 Each scanner emits a structured signal with:
