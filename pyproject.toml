@@ -1,6 +1,8 @@
 [project]
 name = "unblock"
-version = "0.1.0"
+version = "0.2.0"
+description = "A repository health CLI for developer workflow and auth-lifecycle signals"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "typer",
@@ -16,6 +18,7 @@ unblock = "unblock.cli:app"
 
 [project.optional-dependencies]
 llm = ["litellm"]
+dev = ["pytest"]
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -23,3 +26,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["unblock*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
